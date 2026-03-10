@@ -24,8 +24,7 @@ export default function HomePage() {
           Welcome to Fintech Interview Platform
         </h1>
         <p className="text-gray-400 text-center max-w-md mb-6">
-          Select a question from the sidebar to start practicing. Filter by topic (SQL, Python),
-          difficulty, or fintech domain.
+          Select a question from the sidebar to start practicing. You&apos;ll see Run, Save, and Compare with answer buttons.
         </p>
         <div className="flex gap-4">
           <div className="bg-gray-800 rounded-lg p-4 w-48">
