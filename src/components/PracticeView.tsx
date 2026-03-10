@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { CodeEditor } from './CodeEditor';
 import { QuestionList } from './QuestionList';
-import { OutputPanel, type OutputContent } from './OutputPanel';
+import { type OutputContent } from './OutputPanel';
+import { OutputComparison } from './OutputComparison';
 import { DatasetPreview } from './DatasetPreview';
 import { SolutionToggle } from './SolutionToggle';
 import { WindowPane } from './WindowPane';
@@ -12,6 +13,8 @@ import { useSqlRunner } from './SqlRunner';
 import { usePythonRunner } from './PythonRunner';
 import { markQuestionAttempted, getSavedCode, saveCode, clearSavedCode } from '@/lib/storage';
 import type { Question } from '@/types/question';
+
+const AUTO_SAVE_DEBOUNCE_MS = 1500;
 
 interface PracticeViewProps {
   question: Question;
@@ -29,6 +32,19 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
     setCode(saved ?? question.starterCode);
     setOutput(null);
   }, [question.id, question.starterCode]);
+
+  // Auto-save code when it changes (debounced)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (code === question.starterCode) return;
+    saveTimeoutRef.current = setTimeout(() => {
+      saveCode(question.id, code);
+      setSavedAt(new Date());
+    }, AUTO_SAVE_DEBOUNCE_MS);
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [code, question.id, question.starterCode]);
 
   const sqlRunner = useSqlRunner();
   const pythonRunner = usePythonRunner(); // Lazy-loaded when component mounts (only on practice page)
@@ -170,8 +186,13 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
           </div>
         </WindowPane>
 
-        <WindowPane title="Output" className="min-h-[120px] max-h-[280px]">
-          <OutputPanel output={output} isLoading={isRunning} />
+        <WindowPane title="Output" className="min-h-[120px] max-h-[360px]">
+          <OutputComparison
+            userOutput={output}
+            solution={question.solution}
+            runSolution={run}
+            isRunning={isRunning}
+          />
         </WindowPane>
 
         <SolutionToggle solution={question.solution} language={question.topic} />
