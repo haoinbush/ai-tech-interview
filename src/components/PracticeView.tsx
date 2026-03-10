@@ -7,9 +7,10 @@ import { QuestionList } from './QuestionList';
 import { OutputPanel, type OutputContent } from './OutputPanel';
 import { DatasetPreview } from './DatasetPreview';
 import { SolutionToggle } from './SolutionToggle';
+import { WindowPane } from './WindowPane';
 import { useSqlRunner } from './SqlRunner';
 import { usePythonRunner } from './PythonRunner';
-import { markQuestionAttempted } from '@/lib/storage';
+import { markQuestionAttempted, getSavedCode, saveCode, clearSavedCode } from '@/lib/storage';
 import type { Question } from '@/types/question';
 
 interface PracticeViewProps {
@@ -18,12 +19,14 @@ interface PracticeViewProps {
 }
 
 export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
-  const [code, setCode] = useState(question.starterCode);
+  const [code, setCode] = useState(() => getSavedCode(question.id) ?? question.starterCode);
   const [output, setOutput] = useState<OutputContent>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
-    setCode(question.starterCode);
+    const saved = getSavedCode(question.id);
+    setCode(saved ?? question.starterCode);
     setOutput(null);
   }, [question.id, question.starterCode]);
 
@@ -50,7 +53,14 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
   const handleReset = useCallback(() => {
     setCode(question.starterCode);
     setOutput(null);
+    clearSavedCode(question.id);
+    setSavedAt(null);
   }, [question.starterCode]);
+
+  const handleSave = useCallback(() => {
+    saveCode(question.id, code);
+    setSavedAt(new Date());
+  }, [question.id, code]);
 
   const engineReady = question.topic === 'sql' ? sqlRunner.ready : pythonRunner.ready;
   const engineError = question.topic === 'sql' ? sqlRunner.error : pythonRunner.error;
@@ -75,69 +85,81 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-gray-900">
-        <div className="p-4 border-b border-gray-700 flex-shrink-0">
-          <h1 className="text-xl font-semibold text-gray-100">{question.title}</h1>
-          <div className="flex gap-2 mt-1">
-            <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
-              {question.topic}
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
-              {question.difficulty}
-            </span>
-            {question.fintechDomain && (
+      <main className="flex-1 flex flex-col min-w-0 bg-gray-900 p-4 gap-3 overflow-hidden">
+        <WindowPane title="Problem & Tables" className="flex-1 min-h-[200px]">
+          <div className="p-4">
+            <h1 className="text-xl font-semibold text-gray-100">{question.title}</h1>
+            <div className="flex gap-2 mt-1">
               <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
-                {question.fintechDomain}
+                {question.topic}
               </span>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
+                {question.difficulty}
+              </span>
+              {question.fintechDomain && (
+                <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
+                  {question.fintechDomain}
+                </span>
+              )}
+            </div>
+            <p className="mt-3 text-gray-400 text-sm whitespace-pre-wrap">{question.description}</p>
+            {question.topic === 'sql' && (
+              <DatasetPreview onPreview={sqlRunner.run} ready={sqlRunner.ready} />
+            )}
+            {question.hints && question.hints.length > 0 && (
+              <details className="mt-2">
+                <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-400">
+                  ► Hints
+                </summary>
+                <ul className="mt-1 list-disc list-inside text-sm text-gray-500">
+                  {question.hints.map((h, i) => (
+                    <li key={i}>{h}</li>
+                  ))}
+                </ul>
+              </details>
             )}
           </div>
-          <p className="mt-3 text-gray-400 text-sm whitespace-pre-wrap">{question.description}</p>
-          {question.topic === 'sql' && (
-            <DatasetPreview onPreview={sqlRunner.run} ready={sqlRunner.ready} />
-          )}
-          {question.hints && question.hints.length > 0 && (
-            <details className="mt-2">
-              <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-400">
-                Hints
-              </summary>
-              <ul className="mt-1 list-disc list-inside text-sm text-gray-500">
-                {question.hints.map((h, i) => (
-                  <li key={i}>{h}</li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
+        </WindowPane>
 
-        <div className="flex-1 flex flex-col min-h-0 p-4">
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={handleRun}
-              disabled={!engineReady || isRunning}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded"
-            >
-              {isRunning ? 'Running...' : 'Run'}
-            </button>
-            <button
-              onClick={handleReset}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded"
-            >
-              Reset
-            </button>
-            {!engineReady && !engineError && (
-              <span className="px-4 py-2 text-sm text-amber-500/90 self-center animate-pulse">
-                Loading {question.topic === 'sql' ? 'SQL' : 'Python'} engine…
-              </span>
-            )}
-            {engineError && (
-              <span className="px-4 py-2 text-sm text-red-400 self-center max-w-md" title={engineError}>
-                Engine failed to load. Check your connection and refresh.
-              </span>
-            )}
-          </div>
-
-          <div className="flex-1 min-h-0 flex flex-col gap-2">
-            <div className="flex-1 min-h-[280px] flex flex-col" style={{ minHeight: 280 }}>
+        <WindowPane title="Code" className="flex-1 min-h-[280px]">
+          <div className="p-4 flex flex-col">
+            <div className="flex gap-2 mb-2 flex-wrap items-center">
+              <button
+                onClick={handleRun}
+                disabled={!engineReady || isRunning}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded"
+              >
+                {isRunning ? 'Running...' : 'Run'}
+              </button>
+              <button
+                onClick={handleReset}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium rounded"
+              >
+                Reset
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded"
+              >
+                Save
+              </button>
+              {savedAt && (
+                <span className="text-xs text-green-400">
+                  Saved {savedAt.toLocaleTimeString()}
+                </span>
+              )}
+              {!engineReady && !engineError && (
+                <span className="px-4 py-2 text-sm text-amber-500/90 self-center animate-pulse">
+                  Loading {question.topic === 'sql' ? 'SQL' : 'Python'} engine…
+                </span>
+              )}
+              {engineError && (
+                <span className="px-4 py-2 text-sm text-red-400 self-center max-w-md" title={engineError}>
+                  Engine failed to load. Check your connection and refresh.
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-h-[300px]">
               <CodeEditor
                 value={code}
                 onChange={setCode}
@@ -145,11 +167,14 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
                 height={350}
               />
             </div>
-            <OutputPanel output={output} isLoading={isRunning} />
           </div>
+        </WindowPane>
 
-          <SolutionToggle solution={question.solution} language={question.topic} />
-        </div>
+        <WindowPane title="Output" className="min-h-[120px] max-h-[280px]">
+          <OutputPanel output={output} isLoading={isRunning} />
+        </WindowPane>
+
+        <SolutionToggle solution={question.solution} language={question.topic} />
       </main>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { SQL_TABLES } from '@/lib/datasets';
+import { WindowPane } from './WindowPane';
 import type { OutputContent } from './OutputPanel';
 
 interface DatasetPreviewProps {
@@ -57,32 +58,30 @@ export function DatasetPreview({ onPreview, ready }: DatasetPreviewProps) {
       </div>
 
       {table && (
-        <div className="border border-gray-700 rounded-lg overflow-hidden bg-gray-800/50">
-          <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
-            <span className="text-sm font-mono text-gray-200">{table.name}</span>
-            <button
-              type="button"
-              onClick={() => handlePreview(table.name)}
-              disabled={!ready || loadingTable !== null}
-              className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded"
-            >
-              {loadingTable === table.name ? 'Loading…' : 'Preview'}
-            </button>
-          </div>
-          <div className="px-3 py-2">
-            <div className="text-xs text-gray-500 mb-2">
-              {table.columns.map((c) => (
-                <span key={c.name} className="mr-2">
-                  <span className="text-gray-400">{c.name}</span>
-                  <span className="text-gray-600">: {c.type}</span>
-                </span>
-              ))}
+        <WindowPane title={table.name} className="min-h-[180px] max-h-[320px]">
+          <div className="p-3">
+            <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+              <span className="text-xs text-gray-500 flex-1 min-w-0">
+                {table.columns.map((c) => (
+                  <span key={c.name} className="mr-2">
+                    <span className="text-gray-400">{c.name}</span>
+                    <span className="text-gray-600">: {c.type}</span>
+                  </span>
+                ))}
+              </span>
+              <button
+                type="button"
+                onClick={() => handlePreview(table.name)}
+                disabled={!ready || loadingTable !== null}
+                className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded"
+              >
+                {loadingTable === table.name ? 'Loading…' : 'Preview'}
+              </button>
             </div>
             {selectedTable === table.name && previewData && (
-              <div className="mt-2">
+              <div className="window-pane-scroll max-h-48 overflow-auto">
                 {previewData.type === 'table' ? (
-                  <div className="overflow-x-auto max-h-48 overflow-y-auto">
-                    <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-xs border-collapse">
                       <thead>
                         <tr>
                           {previewData.columns.map((col) => (
@@ -117,7 +116,7 @@ export function DatasetPreview({ onPreview, ready }: DatasetPreviewProps) {
               </div>
             )}
           </div>
-        </div>
+        </WindowPane>
       )}
     </div>
   );

@@ -69,3 +69,42 @@ export function getCompletedQuestionIds(): Set<string> {
   const data = getProgress();
   return new Set(data.entries.filter((e) => e.completed).map((e) => e.questionId));
 }
+
+const CODE_STORAGE_KEY = 'tech-interview-saved-code';
+
+export function getSavedCode(questionId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CODE_STORAGE_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, string>;
+    return map[questionId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCode(questionId: string, code: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(CODE_STORAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    map[questionId] = code;
+    localStorage.setItem(CODE_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore
+  }
+}
+
+export function clearSavedCode(questionId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(CODE_STORAGE_KEY);
+    if (!raw) return;
+    const map = JSON.parse(raw) as Record<string, string>;
+    delete map[questionId];
+    localStorage.setItem(CODE_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore
+  }
+}
