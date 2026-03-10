@@ -1,38 +1,25 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { OutputPanel, type OutputContent } from './OutputPanel';
 import { outputsMatch } from '@/lib/outputCompare';
 
 interface OutputComparisonProps {
   userOutput: OutputContent;
-  solution: string;
-  runSolution: (code: string) => Promise<OutputContent>;
+  expectedOutput: OutputContent;
+  showComparison: boolean;
+  isChecking: boolean;
+  onCheckAnswer: () => void;
   isRunning?: boolean;
 }
 
 export function OutputComparison({
   userOutput,
-  solution,
-  runSolution,
+  expectedOutput,
+  showComparison,
+  isChecking,
+  onCheckAnswer,
   isRunning = false,
 }: OutputComparisonProps) {
-  const [expectedOutput, setExpectedOutput] = useState<OutputContent>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
-
-  const handleCheckAnswer = useCallback(async () => {
-    setIsChecking(true);
-    setExpectedOutput(null);
-    try {
-      const result = await runSolution(solution);
-      setExpectedOutput(result);
-      setShowComparison(true);
-    } finally {
-      setIsChecking(false);
-    }
-  }, [runSolution, solution]);
-
   const isCorrect =
     showComparison &&
     expectedOutput &&
@@ -46,7 +33,7 @@ export function OutputComparison({
         <span className="text-sm font-medium text-gray-300">Output</span>
         <button
           type="button"
-          onClick={handleCheckAnswer}
+          onClick={onCheckAnswer}
           disabled={!userOutput || userOutput.type === 'error' || isRunning || isChecking}
           className="px-3 py-1.5 text-sm font-medium rounded bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white"
         >

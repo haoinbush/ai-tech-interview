@@ -26,11 +26,16 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
   const [output, setOutput] = useState<OutputContent>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [expectedOutput, setExpectedOutput] = useState<OutputContent>(null);
+  const [showComparison, setShowComparison] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     const saved = getSavedCode(question.id);
     setCode(saved ?? question.starterCode);
     setOutput(null);
+    setExpectedOutput(null);
+    setShowComparison(false);
   }, [question.id, question.starterCode]);
 
   // Auto-save code when it changes (debounced)
@@ -69,9 +74,23 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
   const handleReset = useCallback(() => {
     setCode(question.starterCode);
     setOutput(null);
+    setExpectedOutput(null);
+    setShowComparison(false);
     clearSavedCode(question.id);
     setSavedAt(null);
   }, [question.starterCode]);
+
+  const handleCheckAnswer = useCallback(async () => {
+    setIsChecking(true);
+    setExpectedOutput(null);
+    try {
+      const result = await run(question.solution);
+      setExpectedOutput(result);
+      setShowComparison(true);
+    } finally {
+      setIsChecking(false);
+    }
+  }, [run, question.solution]);
 
   const handleSave = useCallback(() => {
     saveCode(question.id, code);
@@ -101,7 +120,7 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-gray-900 p-4 gap-3 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 bg-gray-900 p-4 gap-3 overflow-y-auto">
         <WindowPane title="Problem & Tables" className="flex-1 min-h-[200px]">
           <div className="p-4">
             <h1 className="text-xl font-semibold text-gray-100">{question.title}</h1>
@@ -159,6 +178,13 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
               >
                 Save
               </button>
+              <button
+                onClick={handleCheckAnswer}
+                disabled={!engineReady || !output || output.type === 'error' || isRunning || isChecking}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded"
+              >
+                {isChecking ? 'Checking...' : 'Compare with answer'}
+              </button>
               {savedAt && (
                 <span className="text-xs text-green-400">
                   Saved {savedAt.toLocaleTimeString()}
@@ -189,8 +215,10 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
         <WindowPane title="Output" className="min-h-[120px] max-h-[360px]">
           <OutputComparison
             userOutput={output}
-            solution={question.solution}
-            runSolution={run}
+            expectedOutput={expectedOutput}
+            showComparison={showComparison}
+            isChecking={isChecking}
+            onCheckAnswer={handleCheckAnswer}
             isRunning={isRunning}
           />
         </WindowPane>
