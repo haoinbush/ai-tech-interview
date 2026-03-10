@@ -82,34 +82,33 @@ export function DatasetPreview({ onPreview, ready }: DatasetPreviewProps) {
               <div className="window-pane-scroll max-h-48 overflow-auto">
                 {previewData.type === 'table' ? (
                   <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr>
-                          {previewData.columns.map((col) => (
-                            <th
-                              key={col}
-                              className="border border-gray-600 px-2 py-1 text-left font-medium text-gray-400"
+                    <thead>
+                      <tr>
+                        {previewData.columns.map((col) => (
+                          <th
+                            key={col}
+                            className="border border-gray-600 px-2 py-1 text-left font-medium text-gray-400"
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.rows.map((row, i) => (
+                        <tr key={i}>
+                          {row.map((cell, j) => (
+                            <td
+                              key={j}
+                              className="border border-gray-600 px-2 py-1 text-gray-500"
                             >
-                              {col}
-                            </th>
+                              {String(cell ?? 'NULL')}
+                            </td>
                           ))}
                         </tr>
-                      </thead>
-                      <tbody>
-                        {previewData.rows.map((row, i) => (
-                          <tr key={i}>
-                            {row.map((cell, j) => (
-                              <td
-                                key={j}
-                                className="border border-gray-600 px-2 py-1 text-gray-500"
-                              >
-                                {String(cell ?? 'NULL')}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 ) : previewData.type === 'error' ? (
                   <p className="text-red-400 text-xs">{previewData.message}</p>
                 ) : null}
