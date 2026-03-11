@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState, useEffect } from 'react';
 import { allQuestionsWithCompany } from '@/lib/questions';
 import { getCompletedQuestionIds, onProgressUpdated } from '@/lib/storage';
+import { getJobPracticeSets, onJobSetsUpdated } from '@/lib/jobs/storage';
 import type { Question, Topic, Difficulty, FintechDomain } from '@/types/question';
 
 const TOPICS: { value: Topic; label: string }[] = [
@@ -38,14 +39,15 @@ function difficultyColor(d: Difficulty) {
   }
 }
 
-const COMPANIES = Array.from(
-  new Set(
-    allQuestionsWithCompany
-      .map((q) => q.company)
-      .filter((c): c is string => !!c)
-      .sort()
-  )
-);
+type QuestionListItem = Question & { href: string; dedupeKey: string };
+
+function normalizeText(value: string | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function dedupeKeyFor(q: Question): string {
+  return [q.topic, normalizeText(q.title), normalizeText(q.company)].join('|');
+}
 
 export function QuestionList() {
   const [topicFilter, setTopicFilter] = useState<Topic | 'all'>('all');
@@ -56,14 +58,65 @@ export function QuestionList() {
   const [titleSearch, setTitleSearch] = useState('');
 
   const [completedIds, setCompletedIds] = useState(() => getCompletedQuestionIds());
+  const [jobSetsVersion, setJobSetsVersion] = useState(0);
 
   useEffect(() => {
     return onProgressUpdated(() => setCompletedIds(getCompletedQuestionIds()));
   }, []);
 
+  useEffect(() => {
+    return onJobSetsUpdated(() => setJobSetsVersion((v) => v + 1));
+  }, []);
+
+  const allQuestionItems = useMemo(() => {
+    const baseItems: QuestionListItem[] = allQuestionsWithCompany.map((q) => ({
+      ...q,
+      href: `/practice/${q.id}`,
+      dedupeKey: dedupeKeyFor(q),
+    }));
+
+    const jobSets = getJobPracticeSets();
+    const jobItems: QuestionListItem[] = jobSets.flatMap((set) =>
+      (set.questions ?? []).map((q) => {
+        const enriched: Question = {
+          ...q,
+          company: q.company ?? set.company,
+          role: q.role ?? set.role,
+        };
+        return {
+          ...enriched,
+          href: `/jobs/${set.id}/practice/${q.id}`,
+          dedupeKey: dedupeKeyFor(enriched),
+        };
+      })
+    );
+
+    const deduped = new Map<string, QuestionListItem>();
+    for (const item of [...baseItems, ...jobItems]) {
+      if (!deduped.has(item.dedupeKey)) {
+        deduped.set(item.dedupeKey, item);
+      }
+    }
+
+    return Array.from(deduped.values());
+  }, [jobSetsVersion]);
+
+  const companies = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          allQuestionItems
+            .map((q) => q.company)
+            .filter((c): c is string => !!c)
+            .sort()
+        )
+      ),
+    [allQuestionItems]
+  );
+
   const filteredQuestions = useMemo(() => {
     const search = titleSearch.trim().toLowerCase();
-    return allQuestionsWithCompany.filter((q) => {
+    return allQuestionItems.filter((q) => {
       if (topicFilter !== 'all' && q.topic !== topicFilter) return false;
       if (difficultyFilter !== 'all' && q.difficulty !== difficultyFilter) return false;
       if (domainFilter !== 'all' && q.fintechDomain !== domainFilter) return false;
@@ -81,6 +134,7 @@ export function QuestionList() {
     accomplishedFilter,
     titleSearch,
     completedIds,
+    allQuestionItems,
   ]);
 
   return (
@@ -151,7 +205,7 @@ export function QuestionList() {
               className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-100"
             >
               <option value="all">All</option>
-              {COMPANIES.map((c) => (
+              {companies.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -180,9 +234,9 @@ export function QuestionList() {
         ) : (
           <ul className="space-y-1">
             {filteredQuestions.map((q) => (
-              <li key={q.id}>
+              <li key={`${q.id}-${q.href}`}>
                 <Link
-                  href={`/practice/${q.id}`}
+                  href={q.href}
                   className="block px-3 py-2 rounded hover:bg-gray-800 text-sm"
                 >
                   <div className="flex items-center gap-2">
