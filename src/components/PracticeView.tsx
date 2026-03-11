@@ -108,7 +108,12 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
             Fintech Interview
           </Link>
           <p className="text-xs text-gray-500 mt-1">Practice SQL & Python</p>
-          <p className="text-[10px] text-green-500/80 mt-1" title="Save & Compare features">✓ Save & Compare</p>
+          <p className="text-xs text-green-400 font-medium mt-1" title="Save & Compare features">
+            ✓ v2 — Save & Compare with answer
+            {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA && (
+              <span className="text-gray-500 ml-1">({String(process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA).slice(0, 7)})</span>
+            )}
+          </p>
         </header>
         <div className="flex-1 overflow-hidden flex flex-col">
           <Link
