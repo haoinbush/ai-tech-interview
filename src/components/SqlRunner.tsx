@@ -21,29 +21,43 @@ async function loadAllSchemas(): Promise<string> {
 
 export function useSqlRunner() {
   const dbRef = useRef<Database | null>(null);
+  const sqlModuleRef = useRef<Awaited<ReturnType<typeof initSqlJs>> | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const initDb = useCallback(async () => {
+    setReady(false);
+    setError(null);
+    try {
+      if (!sqlModuleRef.current) {
+        sqlModuleRef.current = await initSqlJs({
+          locateFile: (file) => `/${file}`,
+        });
+      }
+      const SQL = sqlModuleRef.current;
+      if (!SQL) {
+        throw new Error('Failed to initialize SQL.js');
+      }
+      const db = new SQL.Database();
+      const schema = await loadAllSchemas();
+      db.run(schema);
+      if (dbRef.current) {
+        dbRef.current.close();
+      }
+      dbRef.current = db;
+      setReady(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load SQL.js');
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const SQL = await initSqlJs({
-          locateFile: (file) => `/${file}`,
-        });
-        const db = new SQL.Database();
-        const schema = await loadAllSchemas();
-        db.run(schema);
-        if (!cancelled) {
-          dbRef.current = db;
-          setReady(true);
-        } else {
-          db.close();
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load SQL.js');
-        }
+      await initDb();
+      if (cancelled && dbRef.current) {
+        dbRef.current.close();
+        dbRef.current = null;
       }
     })();
     return () => {
@@ -53,7 +67,7 @@ export function useSqlRunner() {
         dbRef.current = null;
       }
     };
-  }, []);
+  }, [initDb]);
 
   const run = useCallback(
     async (query: string): Promise<OutputContent> => {
@@ -88,5 +102,9 @@ export function useSqlRunner() {
     [ready]
   );
 
-  return { run, ready, error };
+  const reset = useCallback(async () => {
+    await initDb();
+  }, [initDb]);
+
+  return { run, ready, error, reset };
 }

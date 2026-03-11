@@ -53,6 +53,13 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
 
   const sqlRunner = useSqlRunner();
   const pythonRunner = usePythonRunner(); // Lazy-loaded when component mounts (only on practice page)
+  const resetSqlDb = sqlRunner.reset;
+
+  useEffect(() => {
+    if (question.topic === 'sql') {
+      void resetSqlDb();
+    }
+  }, [question.id, question.topic, resetSqlDb]);
 
   const runner = question.topic === 'sql' ? sqlRunner : pythonRunner;
   const { run, ready, error } = runner;
@@ -145,7 +152,7 @@ export function PracticeView({ question, backHref = '/' }: PracticeViewProps) {
             </div>
             <p className="mt-3 text-gray-400 text-sm whitespace-pre-wrap">{question.description}</p>
             {question.topic === 'sql' && (
-              <DatasetPreview onPreview={sqlRunner.run} ready={sqlRunner.ready} />
+              <DatasetPreview key={question.id} onPreview={sqlRunner.run} ready={sqlRunner.ready} />
             )}
             {question.hints && question.hints.length > 0 && (
               <details className="mt-2">
