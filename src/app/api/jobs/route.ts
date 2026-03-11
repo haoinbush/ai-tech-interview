@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchJob } from '@/lib/jobs/fetcher';
+import { fetchJob, isStripeUrl } from '@/lib/jobs/fetcher';
 import { extractSkills } from '@/lib/jobs/skill-extractor';
 import { matchQuestionsToJob } from '@/lib/jobs/question-matcher';
 import { fetchQuestionsFromWeb } from '@/lib/jobs/fetch-questions-from-web';
@@ -49,11 +49,17 @@ export async function POST(request: NextRequest) {
 
     const job = await fetchJob(jobUrl);
     if (!job) {
+      const isStripeShortId =
+        /^https?:\/\/(?:www\.)?stripe\.com\/jobs\/\d+\/?$/i.test(jobUrl.trim());
       const isSupported =
         /greenhouse\.io|stripe\.com\/jobs/i.test(jobUrl);
       const hint = isSupported
-        ? 'The page may be temporarily unavailable.'
-        : 'Supported: Greenhouse (job-boards.greenhouse.io) and Stripe (stripe.com/jobs/listing/...).';
+        ? isStripeShortId
+          ? 'That Stripe URL is not a full listing page. Use a full Stripe listing URL like https://stripe.com/jobs/listing/<team-or-location>/<job-id>.'
+          : isStripeUrl(jobUrl)
+            ? 'Could not extract this Stripe page. Open the job posting page first, then copy its full URL from the browser address bar.'
+            : 'The page may be temporarily unavailable.'
+        : 'Try a direct public job posting URL with the full description (not a short redirect or blocked page).';
       return NextResponse.json(
         { error: `Could not fetch job description. ${hint}` },
         { status: 400 }

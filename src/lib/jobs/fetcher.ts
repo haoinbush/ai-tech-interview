@@ -4,7 +4,7 @@ const GREENHOUSE_PATTERN =
   /^https?:\/\/job-boards\.greenhouse\.io\/([^/]+)\/jobs\/(\d+)(?:\/.*)?$/;
 
 const STRIPE_PATTERN =
-  /^https?:\/\/(?:www\.)?stripe\.com\/jobs\/listing\/([^/]+)\/(\d+)(?:\/.*)?$/;
+  /^https?:\/\/(?:www\.)?stripe\.com\/jobs(?:\/.*)?$/;
 
 export function parseGreenhouseUrl(url: string): { company: string; jobId: string } | null {
   const match = url.trim().match(GREENHOUSE_PATTERN);
@@ -78,7 +78,7 @@ export async function fetchGreenhouseJob(url: string): Promise<FetchedJob | null
   }
 }
 
-function isStripeUrl(url: string): boolean {
+export function isStripeUrl(url: string): boolean {
   return STRIPE_PATTERN.test(url.trim());
 }
 
@@ -213,7 +213,83 @@ export async function fetchJob(url: string): Promise<FetchedJob | null> {
     return fetchGreenhouseJob(url);
   }
   if (isStripeUrl(url)) {
-    return fetchStripeJob(url);
+    const stripeJob = await fetchStripeJob(url);
+    if (stripeJob) return stripeJob;
   }
-  return null;
+  return fetchGenericJob(url);
+}
+
+function hostnameToCompany(hostname: string): string {
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  const parts = host.split('.');
+  const root = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+  return root
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function cleanText(raw: string): string {
+  return raw
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function fetchGenericJob(url: string): Promise<FetchedJob | null> {
+  try {
+    const parsedUrl = new URL(url);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    if (html.length < 200) return null;
+
+    const titleMatch =
+      html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i) ||
+      html.match(/<meta[^>]*name="twitter:title"[^>]*content="([^"]+)"/i) ||
+      html.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
+      html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+    const rawTitle = titleMatch?.[1]?.trim() ?? 'Unknown Role';
+    const role = rawTitle
+      .replace(/\s*[|–-]\s*(careers?|jobs?|job openings?)\b.*$/i, '')
+      .replace(/^\s*(careers?|jobs?)\s*[|–-]\s*/i, '')
+      .trim();
+
+    const contentMatch =
+      html.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+      html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+      html.match(/<section[^>]*class="[^"]*(job|position|description)[^"]*"[^>]*>([\s\S]*?)<\/section>/i) ||
+      html.match(/<div[^>]*class="[^"]*(job|position|description|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+      html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+
+    // If regex has an optional prefix capture group, keep the last captured group.
+    const contentHtml = contentMatch ? contentMatch[contentMatch.length - 1] : html;
+    const description = cleanText(contentHtml).slice(0, 12000);
+
+    if (description.length < 120) return null;
+
+    return {
+      company: hostnameToCompany(parsedUrl.hostname),
+      role: role || 'Unknown Role',
+      description,
+      url,
+    };
+  } catch {
+    return null;
+  }
 }
